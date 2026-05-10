@@ -1,24 +1,26 @@
-import { View, Text, ScrollView, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, Pressable, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, Easing, FadeInDown } from 'react-native-reanimated';
+import { inventarioApi, UnidadMedida } from '@/services/api';
 
 export default function NuevoIngredienteScreen() {
   const router = useRouter();
   const [nombre, setNombre] = useState('');
   const [cantidad, setCantidad] = useState('');
-  const [unidad, setUnidad] = useState('kg');
+  const [unidad, setUnidad] = useState<UnidadMedida>('kg');
   const [disponible, setDisponible] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const unidades = [
+  const unidades: { key: UnidadMedida; label: string; icon: string }[] = [
     { key: 'kg', label: 'kg', icon: 'weight-kilogram' },
     { key: 'g', label: 'g', icon: 'weight' },
     { key: 'L', label: 'L', icon: 'cup-water' },
     { key: 'ml', label: 'ml', icon: 'water' },
-    { key: 'unidades', label: 'Und.', icon: 'numeric' },
+    { key: 'und', label: 'Und.', icon: 'numeric' },
   ];
 
   // Icon entrance
@@ -30,8 +32,30 @@ export default function NuevoIngredienteScreen() {
     transform: [{ scale: iconScale.value }],
   }));
 
-  const handleGuardar = () => {
-    router.back();
+  const handleGuardar = async () => {
+    if (!nombre.trim()) {
+      Alert.alert('Error', 'El nombre es obligatorio.');
+      return;
+    }
+    const cantNum = parseFloat(cantidad);
+    if (isNaN(cantNum) || cantNum < 0) {
+      Alert.alert('Error', 'Ingresa una cantidad válida.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await inventarioApi.crear({
+        nombre: nombre.trim(),
+        cantidad: cantNum,
+        unidad,
+        estado: disponible ? 'disponible' : 'agotado',
+      });
+      router.back();
+    } catch (e: any) {
+      Alert.alert('Error al guardar', e.message ?? 'Inténtalo de nuevo.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -143,6 +167,7 @@ export default function NuevoIngredienteScreen() {
           <Button 
             title="Guardar ingrediente" 
             onPress={handleGuardar}
+            isLoading={saving}
             className="w-full"
           />
         </Animated.View>

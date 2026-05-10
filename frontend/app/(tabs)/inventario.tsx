@@ -1,14 +1,36 @@
-import { View, Text, ScrollView, Pressable, TextInput } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Animated, {
   useSharedValue, useAnimatedStyle,
   withTiming, withDelay, withSpring,
   Easing, FadeInDown, interpolate,
 } from 'react-native-reanimated';
+import { useInventario } from '@/hooks/useInventario';
+import { Ingrediente } from '@/services/api';
+
+// Ingredient icon & color mapping
+const ICON_MAP: Record<string, string> = {
+  Arroz: 'rice', Pollo: 'food-drumstick', Papa: 'food', Zanahoria: 'carrot',
+  Aceite: 'bottle-tonic', Cebolla: 'food', Ajo: 'food', Tomate: 'food',
+  Lentejas: 'food', Fideos: 'food', Atún: 'fish', Huevos: 'egg', Leche: 'cup',
+  Avena: 'food', Sal: 'shaker', Pimienta: 'shaker',
+};
+const COLORS = ['#f59e0b', '#ef4444', '#8b5cf6', '#f97316', '#3b82f6', '#10b981', '#ec4899', '#06b6d4'];
+
+function getIcon(nombre: string) {
+  for (const key of Object.keys(ICON_MAP)) {
+    if (nombre.toLowerCase().includes(key.toLowerCase())) return ICON_MAP[key];
+  }
+  return 'food-apple';
+}
+
+function getColor(id: string, index: number) {
+  return COLORS[index % COLORS.length];
+}
 
 // ─── Reusable Animated FAB ────────────────────────────────────────────────────
 function AnimatedFAB({ onPress }: { onPress: () => void }) {
@@ -61,19 +83,12 @@ function AnimatedFAB({ onPress }: { onPress: () => void }) {
     </Animated.View>
   );
 }
-// ─────────────────────────────────────────────────────────────────────────────
 
 export default function InventarioScreen() {
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState('todos');
-
-  const ingredientes = [
-    { id: '1', nombre: 'Arroz', cantidad: 10, unidad: 'kg', disponible: true, icon: 'rice', color: '#f59e0b' },
-    { id: '2', nombre: 'Pollo', cantidad: 8, unidad: 'kg', disponible: true, icon: 'food-drumstick', color: '#ef4444' },
-    { id: '3', nombre: 'Papa', cantidad: 15, unidad: 'kg', disponible: true, icon: 'food-apple', color: '#8b5cf6' },
-    { id: '4', nombre: 'Zanahoria', cantidad: 5, unidad: 'kg', disponible: false, icon: 'carrot', color: '#f97316' },
-    { id: '5', nombre: 'Aceite vegetal', cantidad: 2, unidad: 'L', disponible: true, icon: 'bottle-tonic', color: '#3b82f6' },
-  ];
+  const [searchText, setSearchText] = useState('');
+  const { ingredientes, loading, error, refetch } = useInventario();
 
   const filters = [
     { key: 'todos', label: 'Todos' },
@@ -81,11 +96,37 @@ export default function InventarioScreen() {
     { key: 'agotados', label: 'Agotados' },
   ];
 
-  const filtered = ingredientes.filter(i => {
-    if (activeFilter === 'disponibles') return i.disponible;
-    if (activeFilter === 'agotados') return !i.disponible;
-    return true;
-  });
+  const filtered = useMemo(() => {
+    return ingredientes
+      .filter(i => {
+        if (activeFilter === 'disponibles') return i.estado === 'disponible';
+        if (activeFilter === 'agotados') return i.estado === 'agotado';
+        return true;
+      })
+      .filter(i => searchText === '' || i.nombre.toLowerCase().includes(searchText.toLowerCase()));
+  }, [ingredientes, activeFilter, searchText]);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#f9fafb', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#10b981" />
+        <Text style={{ color: '#9ca3af', marginTop: 12, fontWeight: '600' }}>Cargando inventario...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#f9fafb', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <MaterialIcons name="wifi-off" size={48} color="#ef4444" />
+        <Text style={{ color: '#1f2937', fontWeight: '800', fontSize: 18, marginTop: 16 }}>Error de conexión</Text>
+        <Text style={{ color: '#6b7280', textAlign: 'center', marginTop: 8 }}>{error}</Text>
+        <Pressable onPress={refetch} style={{ marginTop: 20, backgroundColor: '#10b981', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14 }}>
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Reintentar</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
@@ -98,11 +139,18 @@ export default function InventarioScreen() {
           borderRadius: 14, borderWidth: 1, borderColor: '#f0f0f0',
         }}>
           <MaterialIcons name="search" size={20} color="#9ca3af" style={{ marginRight: 8 }} />
-          <TextInput 
-            placeholder="Buscar ingrediente..." 
+          <TextInput
+            placeholder="Buscar ingrediente..."
             style={{ flex: 1, color: '#1f2937', fontSize: 15 }}
             placeholderTextColor="#9ca3af"
+            value={searchText}
+            onChangeText={setSearchText}
           />
+          {searchText.length > 0 && (
+            <Pressable onPress={() => setSearchText('')}>
+              <MaterialIcons name="close" size={18} color="#9ca3af" />
+            </Pressable>
+          )}
         </View>
 
         {/* Filters */}
@@ -119,29 +167,38 @@ export default function InventarioScreen() {
               }}>{f.label}</Text>
             </Pressable>
           ))}
+          <View style={{ flex: 1, alignItems: 'flex-end', justifyContent: 'center' }}>
+            <Text style={{ color: '#9ca3af', fontSize: 12 }}>{filtered.length} items</Text>
+          </View>
         </View>
       </View>
 
       <ScrollView style={{ flex: 1, padding: 16 }} contentContainerStyle={{ paddingBottom: 110 }}>
+        {filtered.length === 0 && (
+          <View style={{ alignItems: 'center', paddingTop: 60 }}>
+            <MaterialCommunityIcons name="food-off" size={48} color="#d1d5db" />
+            <Text style={{ color: '#9ca3af', marginTop: 12, fontWeight: '600' }}>No se encontraron ingredientes</Text>
+          </View>
+        )}
         {filtered.map((item, index) => (
-          <Animated.View key={item.id} entering={FadeInDown.delay(index * 80).duration(300)}>
-            <Card onPress={() => router.push(`/inventario/${item.id}`)}>
+          <Animated.View key={item.id} entering={FadeInDown.delay(index * 60).duration(280)}>
+            <Card onPress={() => router.push(`/inventario/${item.id}` as any)}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <View style={{
                   width: 48, height: 48, borderRadius: 16,
-                  backgroundColor: item.color + '15',
+                  backgroundColor: getColor(item.id, index) + '15',
                   alignItems: 'center', justifyContent: 'center', marginRight: 14,
                 }}>
-                  <MaterialCommunityIcons name={item.icon as any} size={24} color={item.color} />
+                  <MaterialCommunityIcons name={getIcon(item.nombre) as any} size={24} color={getColor(item.id, index)} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: '#1f2937', fontWeight: '700', fontSize: 15 }}>{item.nombre}</Text>
                   <Text style={{ color: '#6b7280', fontSize: 13, marginTop: 2 }}>{item.cantidad} {item.unidad}</Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Badge 
-                    label={item.disponible ? 'Disponible' : 'Agotado'} 
-                    variant={item.disponible ? 'success' : 'danger'} 
+                  <Badge
+                    label={item.estado === 'disponible' ? 'Disponible' : 'Agotado'}
+                    variant={item.estado === 'disponible' ? 'success' : 'danger'}
                   />
                   <MaterialIcons name="chevron-right" size={18} color="#d1d5db" />
                 </View>
@@ -151,7 +208,7 @@ export default function InventarioScreen() {
         ))}
       </ScrollView>
 
-      <AnimatedFAB onPress={() => router.push('/inventario/nuevo')} />
+      <AnimatedFAB onPress={() => router.push('/inventario/nuevo' as any)} />
     </View>
   );
 }

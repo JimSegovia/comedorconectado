@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
@@ -7,23 +7,25 @@ import { Button } from '@/components/ui/Button';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, Easing, FadeInDown } from 'react-native-reanimated';
+import { inventarioApi, UnidadMedida } from '@/services/api';
 
 export default function EditarIngredienteScreen() {
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
-  // Mock data
-  const [nombre, setNombre] = useState('Arroz');
-  const [cantidad, setCantidad] = useState('10');
-  const [unidad, setUnidad] = useState('kg');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [nombre, setNombre] = useState('');
+  const [cantidad, setCantidad] = useState('');
+  const [unidad, setUnidad] = useState<UnidadMedida>('kg');
   const [disponible, setDisponible] = useState(true);
 
-  const unidades = [
+  const unidades: { key: UnidadMedida; label: string; icon: string }[] = [
     { key: 'kg', label: 'kg', icon: 'weight-kilogram' },
     { key: 'g', label: 'g', icon: 'weight' },
     { key: 'L', label: 'L', icon: 'cup-water' },
     { key: 'ml', label: 'ml', icon: 'water' },
-    { key: 'unidades', label: 'Und.', icon: 'numeric' },
+    { key: 'und', label: 'Und.', icon: 'numeric' },
   ];
 
   // Icon entrance
@@ -35,8 +37,40 @@ export default function EditarIngredienteScreen() {
     transform: [{ scale: iconScale.value }],
   }));
 
-  const handleGuardar = () => {
-    router.back();
+  // Load ingredient data
+  useEffect(() => {
+    if (!id) return;
+    inventarioApi.obtener(id)
+      .then(item => {
+        setNombre(item.nombre);
+        setCantidad(String(item.cantidad));
+        setUnidad(item.unidad);
+        setDisponible(item.estado === 'disponible');
+      })
+      .catch(e => Alert.alert('Error', e.message ?? 'No se pudo cargar el ingrediente'))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  const handleGuardar = async () => {
+    const cantNum = parseFloat(cantidad);
+    if (isNaN(cantNum) || cantNum < 0) {
+      Alert.alert('Error', 'Ingresa una cantidad válida.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await inventarioApi.actualizar(id, {
+        nombre: nombre.trim(),
+        cantidad: cantNum,
+        unidad,
+        estado: disponible ? 'disponible' : 'agotado',
+      });
+      router.back();
+    } catch (e: any) {
+      Alert.alert('Error al guardar', e.message ?? 'Inténtalo de nuevo.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleEliminar = () => {
@@ -45,10 +79,27 @@ export default function EditarIngredienteScreen() {
       `¿Estás seguro de que deseas eliminar "${nombre}"?`,
       [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Eliminar', style: 'destructive', onPress: () => router.back() },
+        {
+          text: 'Eliminar', style: 'destructive', onPress: async () => {
+            try {
+              await inventarioApi.eliminar(id);
+              router.back();
+            } catch (e: any) {
+              Alert.alert('Error', e.message ?? 'No se pudo eliminar');
+            }
+          }
+        },
       ]
     );
   };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#f9fafb', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#10b981" />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#f9fafb' }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
@@ -59,7 +110,7 @@ export default function EditarIngredienteScreen() {
           width: 80, height: 80, borderRadius: 24,
           backgroundColor: '#f59e0b15', alignItems: 'center', justifyContent: 'center',
         }}>
-          <MaterialCommunityIcons name="rice" size={36} color="#f59e0b" />
+          <MaterialCommunityIcons name="food-apple" size={36} color="#f59e0b" />
         </View>
         <Badge label={disponible ? 'Disponible' : 'Agotado'} variant={disponible ? 'success' : 'danger'} />
       </Animated.View>
@@ -153,7 +204,7 @@ export default function EditarIngredienteScreen() {
       {/* Actions */}
       <Animated.View entering={FadeInDown.delay(350).duration(300)}>
         <View style={{ gap: 10 }}>
-          <Button title="Guardar cambios" onPress={handleGuardar} className="w-full" />
+          <Button title="Guardar cambios" onPress={handleGuardar} isLoading={saving} className="w-full" />
           <Pressable
             onPress={handleEliminar}
             style={{
