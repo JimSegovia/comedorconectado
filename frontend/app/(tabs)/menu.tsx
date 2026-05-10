@@ -1,15 +1,20 @@
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, withRepeat, withSequence, Easing } from 'react-native-reanimated';
+import { useMenu } from '@/hooks/useDashboard';
 
 export default function MenuScreen() {
-  const [generado, setGenerado] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { menu, historial, loading, historialLoading, error, generar } = useMenu();
+  const [raciones, setRaciones] = useState('50');
+  const [showForm, setShowForm] = useState(false);
+
+  // If there's already a menu in historial, show it; otherwise show the generation form
+  const hasMenu = menu !== null;
 
   // Pulse animation for the magic icon
   const pulseScale = useSharedValue(1);
@@ -19,7 +24,7 @@ export default function MenuScreen() {
         withTiming(1.1, { duration: 800, easing: Easing.inOut(Easing.ease) }),
         withTiming(1, { duration: 800, easing: Easing.inOut(Easing.ease) }),
       ),
-      -1, // infinite
+      -1,
       true
     );
   }, []);
@@ -31,23 +36,52 @@ export default function MenuScreen() {
   const resultOpacity = useSharedValue(0);
   const resultTranslateY = useSharedValue(30);
 
-  const handleGenerar = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setGenerado(true);
-      // Trigger entrance animation
+  useEffect(() => {
+    if (menu) {
       resultOpacity.value = withTiming(1, { duration: 500, easing: Easing.out(Easing.quad) });
       resultTranslateY.value = withTiming(0, { duration: 500, easing: Easing.out(Easing.quad) });
-    }, 2000);
-  };
+    }
+  }, [menu]);
 
   const resultStyle = useAnimatedStyle(() => ({
     opacity: resultOpacity.value,
     transform: [{ translateY: resultTranslateY.value }],
   }));
 
-  if (!generado) {
+  const handleGenerar = async () => {
+    const racionsNum = parseInt(raciones, 10);
+    if (isNaN(racionsNum) || racionsNum <= 0) {
+      Alert.alert('Error', 'Ingresa un número válido de raciones.');
+      return;
+    }
+    try {
+      await generar(racionsNum);
+      setShowForm(false);
+    } catch (e: any) {
+      Alert.alert('Error al generar', e.message ?? 'Inténtalo de nuevo.');
+    }
+  };
+
+  const formatDate = (dateStr?: string | null) => {
+    if (!dateStr) return 'Fecha desconocida';
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  if (historialLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#f9fafb', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#10b981" />
+        <Text style={{ color: '#9ca3af', marginTop: 12, fontWeight: '600' }}>Cargando menú...</Text>
+      </View>
+    );
+  }
+
+  if (!hasMenu || showForm) {
     return (
       <View style={{ flex: 1, backgroundColor: '#f9fafb', padding: 20, alignItems: 'center', justifyContent: 'center' }}>
         
@@ -64,25 +98,51 @@ export default function MenuScreen() {
         <Text style={{ fontSize: 24, fontWeight: '800', color: '#1f2937', marginBottom: 8, textAlign: 'center' }}>
           Generar menú con IA
         </Text>
-        <Text style={{ color: '#6b7280', textAlign: 'center', marginBottom: 32, paddingHorizontal: 16, lineHeight: 20 }}>
-          La IA de Grok generará un menú saludable usando los ingredientes que tienes disponibles hoy.
+        <Text style={{ color: '#6b7280', textAlign: 'center', marginBottom: 24, paddingHorizontal: 16, lineHeight: 20 }}>
+          Groq/LLaMA 3 generará un menú saludable basado en los ingredientes disponibles en el inventario.
         </Text>
 
         <Card>
-          <Text style={{ fontWeight: '800', color: '#1f2937', marginBottom: 10 }}>Ingredientes disponibles (16)</Text>
-          <Text style={{ color: '#6b7280', fontSize: 13, lineHeight: 20 }}>
-            Arroz, Pollo, Papa, Zanahoria, Aceite, Cebolla, Ajo, Tomate, Lentejas, Sal, Pimienta, Fideos, Atún, Huevos, Leche, Avena.
-          </Text>
+          <Text style={{ fontWeight: '800', color: '#1f2937', marginBottom: 10 }}>¿Cuántas raciones?</Text>
+          <View style={{
+            flexDirection: 'row', alignItems: 'center',
+            backgroundColor: '#f9fafb', borderRadius: 14,
+            borderWidth: 1, borderColor: '#f0f0f0',
+            paddingHorizontal: 16, paddingVertical: 12,
+          }}>
+            <MaterialIcons name="people" size={20} color="#10b981" style={{ marginRight: 10 }} />
+            <TextInput
+              value={raciones}
+              onChangeText={setRaciones}
+              keyboardType="numeric"
+              style={{ flex: 1, color: '#1f2937', fontSize: 18, fontWeight: '700' }}
+              placeholder="50"
+              placeholderTextColor="#9ca3af"
+            />
+            <Text style={{ color: '#9ca3af', fontSize: 14 }}>raciones</Text>
+          </View>
         </Card>
 
+        {error && (
+          <View style={{ backgroundColor: '#fef2f2', borderRadius: 12, padding: 12, marginTop: 8, width: '100%' }}>
+            <Text style={{ color: '#ef4444', fontWeight: '600', fontSize: 13 }}>{error}</Text>
+          </View>
+        )}
+
         <View style={{ width: '100%', marginTop: 8 }}>
-          <Button 
-            title="Generar menú" 
+          <Button
+            title="Generar menú"
             onPress={handleGenerar}
-            isLoading={isLoading}
+            isLoading={loading}
             className="w-full"
           />
         </View>
+
+        {hasMenu && (
+          <Pressable onPress={() => setShowForm(false)} style={{ marginTop: 12 }}>
+            <Text style={{ color: '#9ca3af', fontWeight: '600' }}>← Ver último menú</Text>
+          </Pressable>
+        )}
         
         <Text style={{ fontSize: 11, color: '#9ca3af', marginTop: 16, textAlign: 'center' }}>
           La generación puede tardar unos segundos.
@@ -97,8 +157,8 @@ export default function MenuScreen() {
       {/* Header Image */}
       <View style={{ height: 180, backgroundColor: '#d1fae5', alignItems: 'center', justifyContent: 'center' }}>
         <MaterialIcons name="restaurant" size={64} color="#10b981" />
-        <Pressable 
-          onPress={() => router.push('/menu/historial')}
+        <Pressable
+          onPress={() => router.push('/menu/historial' as any)}
           style={{
             position: 'absolute', top: 16, right: 16,
             backgroundColor: 'rgba(255,255,255,0.8)', padding: 8, borderRadius: 12,
@@ -111,12 +171,17 @@ export default function MenuScreen() {
       <Animated.View style={[resultStyle, { padding: 16, marginTop: -20 }]}>
         <Card>
           <Text style={{ fontSize: 22, fontWeight: '800', color: '#1f2937', marginBottom: 4 }}>Menú del día</Text>
-          <Text style={{ color: '#9ca3af', fontSize: 13, marginBottom: 16 }}>24 de mayo, 2025 - 10:30 a. m.</Text>
+          <Text style={{ color: '#9ca3af', fontSize: 13, marginBottom: 4 }}>
+            {formatDate(menu?.fecha_generacion)}
+          </Text>
+          <Text style={{ color: '#10b981', fontSize: 13, fontWeight: '600', marginBottom: 16 }}>
+            {menu?.raciones_estimadas} raciones estimadas
+          </Text>
 
           {[
-            { label: 'Entrada', dish: 'Ensalada fresca de verduras', icon: 'bowl-mix' },
-            { label: 'Plato principal', dish: 'Arroz con pollo y ensalada', icon: 'food' },
-            { label: 'Bebida', dish: 'Chicha morada', icon: 'cup-water' },
+            { label: 'Entrada', dish: menu?.entrada, icon: 'bowl-mix' },
+            { label: 'Plato principal', dish: menu?.plato_principal, icon: 'food' },
+            { label: 'Bebida', dish: menu?.bebida, icon: 'cup-water' },
           ].map((item, i) => (
             <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: i < 2 ? 16 : 0 }}>
               <View style={{
@@ -134,30 +199,42 @@ export default function MenuScreen() {
           ))}
         </Card>
 
+        {/* Ingredients used */}
+        {menu?.ingredientes_usados && menu.ingredientes_usados.length > 0 && (
+          <>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: '#1f2937', marginBottom: 10 }}>Ingredientes usados</Text>
+            <Card>
+              <Text style={{ color: '#374151', fontSize: 13, lineHeight: 22 }}>
+                {menu.ingredientes_usados.join(', ')}
+              </Text>
+            </Card>
+          </>
+        )}
+
         {/* Recommendations */}
-        <Text style={{ fontSize: 17, fontWeight: '800', color: '#1f2937', marginBottom: 10 }}>Recomendaciones</Text>
-        <Card>
-          <View style={{ flexDirection: 'row' }}>
-            <View style={{
-              width: 36, height: 36, borderRadius: 12,
-              backgroundColor: '#fffbeb',
-              alignItems: 'center', justifyContent: 'center', marginRight: 12,
-            }}>
-              <MaterialIcons name="lightbulb" size={20} color="#f59e0b" />
-            </View>
-            <Text style={{ flex: 1, color: '#92400e', fontSize: 13, lineHeight: 19 }}>
-              Usa primero ingredientes perecibles como el pollo y las verduras de la ensalada para evitar pérdidas.
-            </Text>
-          </View>
-        </Card>
+        {menu?.recomendaciones && menu.recomendaciones.length > 0 && (
+          <>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: '#1f2937', marginBottom: 10 }}>Recomendaciones</Text>
+            {menu.recomendaciones.map((rec, i) => (
+              <Card key={i}>
+                <View style={{ flexDirection: 'row' }}>
+                  <View style={{
+                    width: 36, height: 36, borderRadius: 12,
+                    backgroundColor: '#fffbeb',
+                    alignItems: 'center', justifyContent: 'center', marginRight: 12,
+                  }}>
+                    <MaterialIcons name="lightbulb" size={20} color="#f59e0b" />
+                  </View>
+                  <Text style={{ flex: 1, color: '#92400e', fontSize: 13, lineHeight: 19 }}>{rec}</Text>
+                </View>
+              </Card>
+            ))}
+          </>
+        )}
         
-        {/* Reset */}
-        <Pressable 
-          onPress={() => {
-            setGenerado(false);
-            resultOpacity.value = 0;
-            resultTranslateY.value = 30;
-          }}
+        {/* Generate new */}
+        <Pressable
+          onPress={() => setShowForm(true)}
           style={{
             marginTop: 8, marginBottom: 32, paddingVertical: 14,
             alignItems: 'center', borderWidth: 2,

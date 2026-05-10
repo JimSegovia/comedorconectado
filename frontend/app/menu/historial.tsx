@@ -1,50 +1,44 @@
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useMenu } from '@/hooks/useDashboard';
+
+function formatDate(dateStr?: string | null) {
+  if (!dateStr) return 'Fecha desconocida';
+  try {
+    return new Date(dateStr).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
+  } catch {
+    return dateStr;
+  }
+}
 
 export default function HistorialMenuScreen() {
   const router = useRouter();
+  const { historial, historialLoading, error, cargarHistorial } = useMenu();
 
-  const menus = [
-    {
-      id: '1',
-      fecha: 'Hoy, 10:30 a. m.',
-      entrada: 'Ensalada fresca de verduras',
-      plato: 'Arroz con pollo y ensalada',
-      bebida: 'Chicha morada',
-      raciones: 120,
-      ingredientes: 8,
-    },
-    {
-      id: '2',
-      fecha: 'Ayer, 9:15 a. m.',
-      entrada: 'Sopa de verduras',
-      plato: 'Guiso de lentejas con arroz',
-      bebida: 'Refresco de avena',
-      raciones: 95,
-      ingredientes: 6,
-    },
-    {
-      id: '3',
-      fecha: '22 de mayo, 8:45 a. m.',
-      entrada: 'Caldo de pollo',
-      plato: 'Tallarines con salsa',
-      bebida: 'Limonada',
-      raciones: 110,
-      ingredientes: 7,
-    },
-    {
-      id: '4',
-      fecha: '21 de mayo, 10:00 a. m.',
-      entrada: 'Ensalada de betarraga',
-      plato: 'Estofado de carne con papas',
-      bebida: 'Emoliente',
-      raciones: 85,
-      ingredientes: 9,
-    },
-  ];
+  if (historialLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#f9fafb', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#10b981" />
+        <Text style={{ color: '#9ca3af', marginTop: 12, fontWeight: '600' }}>Cargando historial...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#f9fafb', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <MaterialIcons name="wifi-off" size={48} color="#ef4444" />
+        <Text style={{ color: '#1f2937', fontWeight: '800', fontSize: 18, marginTop: 16 }}>Error de conexión</Text>
+        <Text style={{ color: '#6b7280', textAlign: 'center', marginTop: 8 }}>{error}</Text>
+        <Pressable onPress={cargarHistorial} style={{ marginTop: 20, backgroundColor: '#10b981', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14 }}>
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Reintentar</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#f9fafb' }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
@@ -61,13 +55,25 @@ export default function HistorialMenuScreen() {
             <MaterialIcons name="history" size={22} color="#10b981" />
           </View>
           <View>
-            <Text style={{ color: '#059669', fontWeight: '800', fontSize: 15 }}>{menus.length} menús generados</Text>
+            <Text style={{ color: '#059669', fontWeight: '800', fontSize: 15 }}>
+              {historial.length} menú{historial.length !== 1 ? 's' : ''} generado{historial.length !== 1 ? 's' : ''}
+            </Text>
             <Text style={{ color: '#6b7280', fontSize: 12, marginTop: 2 }}>Historial de menús creados con IA</Text>
           </View>
         </View>
       </Animated.View>
 
-      {menus.map((menu, index) => (
+      {historial.length === 0 && (
+        <View style={{ alignItems: 'center', paddingTop: 60 }}>
+          <MaterialIcons name="restaurant-menu" size={48} color="#d1d5db" />
+          <Text style={{ color: '#9ca3af', marginTop: 12, fontWeight: '600' }}>No hay menús generados aún</Text>
+          <Pressable onPress={() => router.back()} style={{ marginTop: 12 }}>
+            <Text style={{ color: '#10b981', fontWeight: '700' }}>Generar el primero →</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {historial.map((menu, index) => (
         <Animated.View key={menu.id} entering={FadeInDown.delay(100 + index * 80).duration(300)}>
           <Card>
             {/* Header */}
@@ -81,14 +87,14 @@ export default function HistorialMenuScreen() {
                 </View>
                 <View>
                   <Text style={{ color: '#1f2937', fontWeight: '800', fontSize: 14 }}>Menú del día</Text>
-                  <Text style={{ color: '#9ca3af', fontSize: 11 }}>{menu.fecha}</Text>
+                  <Text style={{ color: '#9ca3af', fontSize: 11 }}>{formatDate(menu.fecha_generacion)}</Text>
                 </View>
               </View>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <View style={{
                   backgroundColor: '#eff6ff', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
                 }}>
-                  <Text style={{ color: '#3b82f6', fontSize: 10, fontWeight: '700' }}>{menu.raciones} raciones</Text>
+                  <Text style={{ color: '#3b82f6', fontSize: 10, fontWeight: '700' }}>{menu.raciones_estimadas} raciones</Text>
                 </View>
               </View>
             </View>
@@ -96,7 +102,7 @@ export default function HistorialMenuScreen() {
             {/* Menu items */}
             {[
               { label: 'Entrada', value: menu.entrada, icon: 'bowl-mix' },
-              { label: 'Principal', value: menu.plato, icon: 'food' },
+              { label: 'Principal', value: menu.plato_principal, icon: 'food' },
               { label: 'Bebida', value: menu.bebida, icon: 'cup-water' },
             ].map((item, i) => (
               <View key={i} style={{
@@ -109,6 +115,16 @@ export default function HistorialMenuScreen() {
                 <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', flex: 1 }}>{item.value}</Text>
               </View>
             ))}
+
+            {/* Ingredients used */}
+            {menu.ingredientes_usados?.length > 0 && (
+              <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+                <Text style={{ color: '#9ca3af', fontSize: 10, fontWeight: '700', marginBottom: 4 }}>INGREDIENTES USADOS</Text>
+                <Text style={{ color: '#6b7280', fontSize: 12 }} numberOfLines={2}>
+                  {menu.ingredientes_usados.join(', ')}
+                </Text>
+              </View>
+            )}
           </Card>
         </Animated.View>
       ))}

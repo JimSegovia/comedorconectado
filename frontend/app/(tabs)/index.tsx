@@ -1,9 +1,10 @@
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, Easing } from 'react-native-reanimated';
+import { useDashboard } from '@/hooks/useDashboard';
 
 // Animated stat card with entrance
 const StatCard = ({ icon, iconColor, iconBg, label, value, subtitle, delay, linkTo }: {
@@ -55,6 +56,7 @@ const StatCard = ({ icon, iconColor, iconBg, label, value, subtitle, delay, link
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const { resumen, loading, error, refetch } = useDashboard();
 
   // Menu card entrance
   const menuOpacity = useSharedValue(0);
@@ -71,6 +73,34 @@ export default function DashboardScreen() {
     transform: [{ translateY: menuTranslateY.value }],
   }));
 
+  const voluntariosActivos = resumen?.voluntarios_activos ?? 0;
+  const turnosHoy = resumen?.turnos_hoy ?? 0;
+  const ingredientes = resumen?.ingredientes_disponibles ?? 0;
+  const asistenciasConf = resumen?.asistencias_hoy?.confirmadas ?? 0;
+  const ultimoMenu = resumen?.ultimo_menu;
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#f9fafb', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#10b981" />
+        <Text style={{ color: '#9ca3af', marginTop: 12, fontWeight: '600' }}>Cargando dashboard...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#f9fafb', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <MaterialIcons name="wifi-off" size={48} color="#ef4444" />
+        <Text style={{ color: '#1f2937', fontWeight: '800', fontSize: 18, marginTop: 16 }}>Sin conexión</Text>
+        <Text style={{ color: '#6b7280', textAlign: 'center', marginTop: 8 }}>{error}</Text>
+        <Pressable onPress={refetch} style={{ marginTop: 20, backgroundColor: '#10b981', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14 }}>
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Reintentar</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#f9fafb' }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
       
@@ -84,22 +114,22 @@ export default function DashboardScreen() {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
         <StatCard
           icon="people" iconColor="#10b981" iconBg="#ecfdf5"
-          label="Voluntarios" value="28" subtitle="Activos: 24"
-          delay={0}
+          label="Voluntarios activos" value={String(voluntariosActivos)}
+          delay={0} linkTo="/(tabs)/voluntarios"
         />
         <StatCard
           icon="event" iconColor="#f59e0b" iconBg="#fffbeb"
-          label="Turnos hoy" value="3"
+          label="Turnos hoy" value={String(turnosHoy)}
           delay={100} linkTo="/(tabs)/turnos"
         />
         <StatCard
           icon="eco" iconColor="#10b981" iconBg="#ecfdf5"
-          label="Ingredientes" value="16"
+          label="Ingredientes" value={String(ingredientes)}
           delay={200} linkTo="/(tabs)/inventario"
         />
         <StatCard
-          icon="soup-kitchen" iconColor="#ef4444" iconBg="#fef2f2"
-          label="Raciones est." value="120" subtitle="Aproximadas"
+          icon="check-circle" iconColor="#3b82f6" iconBg="#eff6ff"
+          label="Asistencias hoy" value={String(asistenciasConf)} subtitle="Confirmadas"
           delay={300}
         />
       </View>
@@ -107,41 +137,52 @@ export default function DashboardScreen() {
       {/* Menu Section */}
       <Animated.View style={menuStyle}>
         <Text style={{ fontSize: 18, fontWeight: '800', color: '#1f2937', marginBottom: 4, marginTop: 8 }}>Último menú generado</Text>
-        <Text style={{ color: '#9ca3af', fontSize: 13, marginBottom: 12 }}>Hoy, 10:30 a. m.</Text>
 
-        <Card onPress={() => router.push('/(tabs)/menu')}>
-          {/* Menu Header */}
-          <View style={{
-            flexDirection: 'row', alignItems: 'center',
-            backgroundColor: '#ecfdf5', borderRadius: 14,
-            padding: 12, marginBottom: 16, marginHorizontal: -4, marginTop: -4,
-          }}>
+        {ultimoMenu ? (
+          <Card onPress={() => router.push('/(tabs)/menu')}>
+            {/* Menu Header */}
             <View style={{
-              backgroundColor: '#d1fae5', width: 40, height: 40,
-              borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12,
+              flexDirection: 'row', alignItems: 'center',
+              backgroundColor: '#ecfdf5', borderRadius: 14,
+              padding: 12, marginBottom: 16, marginHorizontal: -4, marginTop: -4,
             }}>
-              <MaterialIcons name="restaurant-menu" size={22} color="#10b981" />
-            </View>
-            <Text style={{ color: '#059669', fontWeight: '800', fontSize: 16 }}>Menú del día</Text>
-          </View>
-
-          {/* Menu Items */}
-          {[
-            { label: 'Entrada', dish: 'Ensalada fresca de verduras' },
-            { label: 'Plato principal', dish: 'Arroz con pollo y ensalada' },
-            { label: 'Bebida', dish: 'Chicha morada' },
-          ].map((item, i) => (
-            <View key={i}>
-              <View style={{ paddingVertical: 8 }}>
-                <Text style={{ color: '#9ca3af', fontSize: 10, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>{item.label}</Text>
-                <Text style={{ color: '#1f2937', fontWeight: '600', fontSize: 15 }}>{item.dish}</Text>
+              <View style={{
+                backgroundColor: '#d1fae5', width: 40, height: 40,
+                borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12,
+              }}>
+                <MaterialIcons name="restaurant-menu" size={22} color="#10b981" />
               </View>
-              {i < 2 && <View style={{ height: 1, backgroundColor: '#f3f4f6' }} />}
+              <Text style={{ color: '#059669', fontWeight: '800', fontSize: 16 }}>Menú del día</Text>
             </View>
-          ))}
 
-          <Text style={{ color: '#10b981', fontSize: 13, fontWeight: '700', textAlign: 'center', marginTop: 12 }}>Ver detalle completo →</Text>
-        </Card>
+            {/* Menu Items */}
+            {[
+              { label: 'Entrada', dish: ultimoMenu.entrada },
+              { label: 'Plato principal', dish: ultimoMenu.plato_principal },
+              { label: 'Bebida', dish: ultimoMenu.bebida },
+            ].map((item, i) => (
+              item.dish ? (
+                <View key={i}>
+                  <View style={{ paddingVertical: 8 }}>
+                    <Text style={{ color: '#9ca3af', fontSize: 10, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>{item.label}</Text>
+                    <Text style={{ color: '#1f2937', fontWeight: '600', fontSize: 15 }}>{item.dish}</Text>
+                  </View>
+                  {i < 2 && <View style={{ height: 1, backgroundColor: '#f3f4f6' }} />}
+                </View>
+              ) : null
+            ))}
+
+            <Text style={{ color: '#10b981', fontSize: 13, fontWeight: '700', textAlign: 'center', marginTop: 12 }}>Ver detalle completo →</Text>
+          </Card>
+        ) : (
+          <Card onPress={() => router.push('/(tabs)/menu')}>
+            <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+              <MaterialIcons name="restaurant-menu" size={36} color="#d1d5db" />
+              <Text style={{ color: '#9ca3af', marginTop: 8, fontWeight: '600' }}>No hay menú generado aún</Text>
+              <Text style={{ color: '#10b981', fontWeight: '700', marginTop: 8 }}>Generar menú con IA →</Text>
+            </View>
+          </Card>
+        )}
       </Animated.View>
     </ScrollView>
   );
