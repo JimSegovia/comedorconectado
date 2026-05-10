@@ -50,10 +50,13 @@ export default function TabLayout() {
       </View>
 
       <View className="mt-auto border-t border-border pt-6">
-         <Pressable className="flex-row items-center p-4 rounded-2xl bg-red-50">
+          <Pressable 
+            onPress={() => router.replace('/')}
+            className="flex-row items-center p-4 rounded-2xl bg-red-50"
+          >
             <MaterialIcons name="logout" size={22} color="#ef4444" />
             <Text className="text-danger font-bold ml-3">Cerrar sesión</Text>
-         </Pressable>
+          </Pressable>
       </View>
     </View>
   );
