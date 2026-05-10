@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -7,6 +7,19 @@ import Animated, {
   FadeInDown, useSharedValue, useAnimatedStyle,
   withTiming, withDelay, withSpring, Easing, interpolate,
 } from 'react-native-reanimated';
+import { useTurnos } from '@/hooks/useTurnos';
+import { Turno, HorarioTurno } from '@/services/api';
+
+const DAYS_ES = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const MONTHS_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+function formatDate(d: Date) {
+  return `${d.getDate()} de ${MONTHS_ES[d.getMonth()]}, ${d.getFullYear()}`;
+}
+
+function toISODate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 // ─── Reusable Animated FAB ────────────────────────────────────────────────────
 function AnimatedFAB({ onPress }: { onPress: () => void }) {
@@ -59,34 +72,33 @@ function AnimatedFAB({ onPress }: { onPress: () => void }) {
     </Animated.View>
   );
 }
-// ─────────────────────────────────────────────────────────────────────────────
 
-const DAYS_ES = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
-const MONTHS_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const HORARIO_COLOR: Record<HorarioTurno, string> = {
+  'mañana': '#f59e0b',
+  'tarde': '#10b981',
+  'noche': '#8b5cf6',
+};
 
-function formatDate(d: Date) {
-  return `${d.getDate()} de ${MONTHS_ES[d.getMonth()]}, ${d.getFullYear()}`;
-}
+const HORARIO_LABEL: Record<HorarioTurno, string> = {
+  'mañana': 'Mañana',
+  'tarde': 'Tarde',
+  'noche': 'Noche',
+};
 
 export default function TurnosScreen() {
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState('todos');
-  const [currentDate, setCurrentDate] = useState(new Date(2025, 4, 24)); // May 24 2025
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [showPicker, setShowPicker] = useState(false);
 
-  const turnos = [
-    { id: '1', horario: 'Mañana', horas: '7:00 a. m. - 12:00 p. m.', programados: 5, asistieron: 4, porcentaje: 80, color: '#f59e0b' },
-    { id: '2', horario: 'Tarde', horas: '12:00 p. m. - 5:00 p. m.', programados: 6, asistieron: 6, porcentaje: 100, color: '#10b981' },
-    { id: '3', horario: 'Noche', horas: '5:00 p. m. - 9:00 p. m.', programados: 4, asistieron: 2, porcentaje: 50, color: '#ef4444' },
-  ];
+  const fechaISO = toISODate(currentDate);
+  const { turnos, loading, error, refetch } = useTurnos(fechaISO);
 
-  const filters = ['todos', 'Mañana', 'Tarde', 'Noche'];
+  const filters = ['todos', 'mañana', 'tarde', 'noche'];
 
-  const getProgressColor = (pct: number) => {
-    if (pct >= 80) return '#10b981';
-    if (pct >= 50) return '#f59e0b';
-    return '#ef4444';
-  };
+  const filtered = turnos.filter(t =>
+    activeFilter === 'todos' || t.horario === activeFilter
+  );
 
   const goToPrevDay = () => {
     const d = new Date(currentDate);
@@ -111,15 +123,6 @@ export default function TurnosScreen() {
     for (let d = 1; d <= daysInMonth; d++) cells.push(d);
     while (cells.length % 7 !== 0) cells.push(null);
 
-    const prevMonth = () => {
-      const d = new Date(year, month - 1, 1);
-      setCurrentDate(d);
-    };
-    const nextMonth = () => {
-      const d = new Date(year, month + 1, 1);
-      setCurrentDate(d);
-    };
-
     return (
       <Pressable onPress={() => setShowPicker(false)} style={{
         position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
@@ -131,20 +134,18 @@ export default function TurnosScreen() {
           width: 320, shadowColor: '#000', shadowOpacity: 0.2,
           shadowRadius: 20, elevation: 12,
         }}>
-          {/* Month header */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <Pressable onPress={prevMonth} style={{ padding: 8 }}>
+            <Pressable onPress={() => setCurrentDate(new Date(year, month - 1, 1))} style={{ padding: 8 }}>
               <MaterialIcons name="chevron-left" size={24} color="#374151" />
             </Pressable>
             <Text style={{ fontWeight: '800', fontSize: 16, color: '#1f2937', textTransform: 'capitalize' }}>
               {MONTHS_ES[month]} {year}
             </Text>
-            <Pressable onPress={nextMonth} style={{ padding: 8 }}>
+            <Pressable onPress={() => setCurrentDate(new Date(year, month + 1, 1))} style={{ padding: 8 }}>
               <MaterialIcons name="chevron-right" size={24} color="#374151" />
             </Pressable>
           </View>
 
-          {/* Day labels */}
           <View style={{ flexDirection: 'row', marginBottom: 8 }}>
             {DAYS_ES.map(d => (
               <Text key={d} style={{
@@ -154,7 +155,6 @@ export default function TurnosScreen() {
             ))}
           </View>
 
-          {/* Grid */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
             {cells.map((day, i) => {
               const isSelected = day === currentDate.getDate() && month === currentDate.getMonth();
@@ -244,49 +244,77 @@ export default function TurnosScreen() {
             <Text style={{
               color: activeFilter === f ? '#fff' : '#374151',
               fontWeight: '600', fontSize: 13,
-            }}>{f === 'todos' ? 'Todos' : f}</Text>
+            }}>{f === 'todos' ? 'Todos' : HORARIO_LABEL[f as HorarioTurno] ?? f}</Text>
           </Pressable>
         ))}
       </View>
 
-      <ScrollView style={{ flex: 1, padding: 16 }} contentContainerStyle={{ paddingBottom: 110 }}>
-        {turnos.map((turno, index) => (
-          <Animated.View key={turno.id} entering={FadeInDown.delay(index * 100).duration(350)}>
-            <Card onPress={() => router.push(`/turnos/${turno.id}`)}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: turno.color, marginRight: 8 }} />
-                    <Text style={{ color: '#1f2937', fontWeight: '800', fontSize: 17 }}>{turno.horario}</Text>
-                  </View>
-                  <Text style={{ color: '#6b7280', fontSize: 13, marginBottom: 8 }}>{turno.horas}</Text>
+      {loading ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color="#10b981" />
+          <Text style={{ color: '#9ca3af', marginTop: 12, fontWeight: '600' }}>Cargando turnos...</Text>
+        </View>
+      ) : error ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <MaterialIcons name="wifi-off" size={48} color="#ef4444" />
+          <Text style={{ color: '#1f2937', fontWeight: '800', fontSize: 18, marginTop: 16 }}>Error de conexión</Text>
+          <Pressable onPress={refetch} style={{ marginTop: 20, backgroundColor: '#10b981', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14 }}>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Reintentar</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <ScrollView style={{ flex: 1, padding: 16 }} contentContainerStyle={{ paddingBottom: 110 }}>
+          {filtered.length === 0 && (
+            <View style={{ alignItems: 'center', paddingTop: 60 }}>
+              <MaterialIcons name="event-busy" size={48} color="#d1d5db" />
+              <Text style={{ color: '#9ca3af', marginTop: 12, fontWeight: '600' }}>No hay turnos para este día</Text>
+              <Text style={{ color: '#10b981', fontWeight: '700', marginTop: 8 }}>Toca + para crear uno</Text>
+            </View>
+          )}
+          {filtered.map((turno, index) => {
+            const color = HORARIO_COLOR[turno.horario] ?? '#6b7280';
+            const asignados = turno.voluntarios_asignados.length;
+            return (
+              <Animated.View key={turno.id} entering={FadeInDown.delay(index * 100).duration(350)}>
+                <Card onPress={() => router.push(`/turnos/${turno.id}` as any)}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <MaterialIcons name="people" size={16} color="#9ca3af" style={{ marginRight: 4 }} />
-                    <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600' }}>
-                      {turno.asistieron}/{turno.programados} asistieron
-                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color, marginRight: 8 }} />
+                        <Text style={{ color: '#1f2937', fontWeight: '800', fontSize: 17 }}>
+                          {HORARIO_LABEL[turno.horario]}
+                        </Text>
+                      </View>
+                      <Text style={{ color: '#6b7280', fontSize: 13, marginBottom: 8 }}>
+                        {turno.hora_inicio} - {turno.hora_fin}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <MaterialIcons name="people" size={16} color="#9ca3af" style={{ marginRight: 4 }} />
+                        <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600' }}>
+                          {asignados} voluntario{asignados !== 1 ? 's' : ''} asignado{asignados !== 1 ? 's' : ''}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <View style={{
+                        paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10,
+                        backgroundColor: color + '15',
+                      }}>
+                        <Text style={{ color, fontWeight: '800', fontSize: 12 }}>
+                          {turno.estado}
+                        </Text>
+                      </View>
+                      <MaterialIcons name="chevron-right" size={18} color="#d1d5db" />
+                    </View>
                   </View>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <View style={{
-                    width: 60, height: 60, borderRadius: 30,
-                    borderWidth: 4, borderColor: getProgressColor(turno.porcentaje),
-                    alignItems: 'center', justifyContent: 'center',
-                    backgroundColor: getProgressColor(turno.porcentaje) + '10',
-                  }}>
-                    <Text style={{ color: getProgressColor(turno.porcentaje), fontWeight: '800', fontSize: 14 }}>
-                      {turno.porcentaje}%
-                    </Text>
-                  </View>
-                  <MaterialIcons name="chevron-right" size={18} color="#d1d5db" />
-                </View>
-              </View>
-            </Card>
-          </Animated.View>
-        ))}
-      </ScrollView>
+                </Card>
+              </Animated.View>
+            );
+          })}
+        </ScrollView>
+      )}
 
-      <AnimatedFAB onPress={() => router.push('/turnos/nuevo')} />
+      <AnimatedFAB onPress={() => router.push('/turnos/nuevo' as any)} />
     </View>
   );
 }
