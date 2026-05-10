@@ -1,21 +1,31 @@
-import { View, Text, ScrollView, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, Easing, FadeInDown } from 'react-native-reanimated';
+import { voluntariosApi, DiaSemana, EstadoVoluntario } from '@/services/api';
 
-const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const DIAS_CONFIG: { key: DiaSemana; label: string }[] = [
+  { key: 'lunes', label: 'Lun' },
+  { key: 'martes', label: 'Mar' },
+  { key: 'miercoles', label: 'Mié' },
+  { key: 'jueves', label: 'Jue' },
+  { key: 'viernes', label: 'Vie' },
+  { key: 'sabado', label: 'Sáb' },
+  { key: 'domingo', label: 'Dom' },
+];
 
 export default function EditarVoluntarioScreen() {
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
-  // Pre-filled with mock data
-  const [nombre, setNombre] = useState('Juan Pérez');
-  const [telefono, setTelefono] = useState('999 888 777');
-  const [diasSeleccionados, setDiasSeleccionados] = useState(['Lun', 'Mié', 'Vie']);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [nombre, setNombre] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const [diasSeleccionados, setDiasSeleccionados] = useState<DiaSemana[]>([]);
   const [activo, setActivo] = useState(true);
 
   const avatarScale = useSharedValue(0);
@@ -24,13 +34,55 @@ export default function EditarVoluntarioScreen() {
   }, []);
   const avatarStyle = useAnimatedStyle(() => ({ transform: [{ scale: avatarScale.value }] }));
 
-  const toggleDia = (dia: string) => {
+  useEffect(() => {
+    if (!id) return;
+    voluntariosApi.obtener(id)
+      .then(v => {
+        setNombre(v.nombre_completo);
+        setTelefono(v.telefono);
+        setDiasSeleccionados(v.disponibilidad);
+        setActivo(v.estado === 'activo');
+      })
+      .catch(e => Alert.alert('Error', e.message ?? 'No se pudo cargar el voluntario'))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  const toggleDia = (dia: DiaSemana) => {
     if (diasSeleccionados.includes(dia)) {
       setDiasSeleccionados(diasSeleccionados.filter(d => d !== dia));
     } else {
       setDiasSeleccionados([...diasSeleccionados, dia]);
     }
   };
+
+  const handleGuardar = async () => {
+    if (!nombre.trim()) return Alert.alert('Error', 'El nombre es obligatorio');
+    
+    setSaving(true);
+    try {
+      await voluntariosApi.actualizar(id, {
+        nombre_completo: nombre.trim(),
+        telefono: telefono.trim(),
+        disponibilidad: diasSeleccionados,
+        estado: activo ? 'activo' : 'inactivo',
+      });
+      router.back();
+    } catch (e: any) {
+      Alert.alert('Error al guardar', e.message ?? 'Inténtalo de nuevo');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#f9fafb', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#10b981" />
+      </View>
+    );
+  }
+
+  const iniciales = nombre.split(' ').slice(0, 2).map(p => p[0]).join('').toUpperCase() || '?';
 
   return (
     <KeyboardAvoidingView 
@@ -46,9 +98,9 @@ export default function EditarVoluntarioScreen() {
             width: 80, height: 80, borderRadius: 26,
             backgroundColor: '#10b98118', alignItems: 'center', justifyContent: 'center',
           }}>
-            <Text style={{ color: '#10b981', fontWeight: '800', fontSize: 28 }}>JP</Text>
+            <Text style={{ color: '#10b981', fontWeight: '800', fontSize: 28 }}>{iniciales}</Text>
           </View>
-          <Text style={{ color: '#9ca3af', fontSize: 12, marginTop: 8 }}>Voluntario #{id}</Text>
+          <Text style={{ color: '#9ca3af', fontSize: 12, marginTop: 8 }}>Editando Voluntario</Text>
         </Animated.View>
 
         {/* Form */}
@@ -66,15 +118,15 @@ export default function EditarVoluntarioScreen() {
               Disponibilidad
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-              {DIAS.map(dia => {
-                const isSelected = diasSeleccionados.includes(dia);
+              {DIAS_CONFIG.map(dia => {
+                const isSelected = diasSeleccionados.includes(dia.key);
                 return (
-                  <Pressable key={dia} onPress={() => toggleDia(dia)} style={{
+                  <Pressable key={dia.key} onPress={() => toggleDia(dia.key)} style={{
                     paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, borderWidth: 1.5,
                     backgroundColor: isSelected ? '#10b981' : '#fff',
                     borderColor: isSelected ? '#10b981' : '#e5e7eb',
                   }}>
-                    <Text style={{ color: isSelected ? '#fff' : '#6b7280', fontWeight: '700', fontSize: 13 }}>{dia}</Text>
+                    <Text style={{ color: isSelected ? '#fff' : '#6b7280', fontWeight: '700', fontSize: 13 }}>{dia.label}</Text>
                   </Pressable>
                 );
               })}
@@ -104,7 +156,7 @@ export default function EditarVoluntarioScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(300).duration(350)}>
-          <Button title="Guardar cambios" onPress={() => router.back()} className="w-full" />
+          <Button title="Guardar cambios" onPress={handleGuardar} isLoading={saving} className="w-full" />
         </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>

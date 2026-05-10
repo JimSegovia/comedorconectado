@@ -1,19 +1,29 @@
-import { View, Text, ScrollView, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, Pressable, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, Easing, FadeInDown } from 'react-native-reanimated';
+import { voluntariosApi, DiaSemana } from '@/services/api';
 
-const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const DIAS: { key: DiaSemana; label: string }[] = [
+  { key: 'lunes', label: 'Lun' },
+  { key: 'martes', label: 'Mar' },
+  { key: 'miercoles', label: 'Mié' },
+  { key: 'jueves', label: 'Jue' },
+  { key: 'viernes', label: 'Vie' },
+  { key: 'sabado', label: 'Sáb' },
+  { key: 'domingo', label: 'Dom' },
+];
 
 export default function NuevoVoluntarioScreen() {
   const router = useRouter();
   const [nombre, setNombre] = useState('');
   const [telefono, setTelefono] = useState('');
-  const [diasSeleccionados, setDiasSeleccionados] = useState<string[]>([]);
+  const [diasSeleccionados, setDiasSeleccionados] = useState<DiaSemana[]>([]);
   const [activo, setActivo] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   // Avatar entrance
   const avatarScale = useSharedValue(0);
@@ -24,7 +34,7 @@ export default function NuevoVoluntarioScreen() {
     transform: [{ scale: avatarScale.value }],
   }));
 
-  const toggleDia = (dia: string) => {
+  const toggleDia = (dia: DiaSemana) => {
     if (diasSeleccionados.includes(dia)) {
       setDiasSeleccionados(diasSeleccionados.filter(d => d !== dia));
     } else {
@@ -32,8 +42,29 @@ export default function NuevoVoluntarioScreen() {
     }
   };
 
-  const handleGuardar = () => {
-    router.back();
+  const handleGuardar = async () => {
+    if (!nombre.trim()) {
+      Alert.alert('Error', 'El nombre es obligatorio.');
+      return;
+    }
+    if (!telefono.trim()) {
+      Alert.alert('Error', 'El teléfono es obligatorio.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await voluntariosApi.crear({
+        nombre_completo: nombre.trim(),
+        telefono: telefono.trim(),
+        disponibilidad: diasSeleccionados,
+        estado: activo ? 'activo' : 'inactivo',
+      });
+      router.back();
+    } catch (e: any) {
+      Alert.alert('Error al guardar', e.message ?? 'Inténtalo de nuevo.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -83,12 +114,12 @@ export default function NuevoVoluntarioScreen() {
               Disponibilidad
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-              {DIAS.map(dia => {
-                const isSelected = diasSeleccionados.includes(dia);
+              {DIAS.map(({ key, label }) => {
+                const isSelected = diasSeleccionados.includes(key);
                 return (
                   <Pressable 
-                    key={dia}
-                    onPress={() => toggleDia(dia)}
+                    key={key}
+                    onPress={() => toggleDia(key)}
                     style={{
                       paddingHorizontal: 16, paddingVertical: 8,
                       borderRadius: 12, borderWidth: 1.5,
@@ -99,7 +130,7 @@ export default function NuevoVoluntarioScreen() {
                     <Text style={{
                       color: isSelected ? '#fff' : '#6b7280',
                       fontWeight: '700', fontSize: 13,
-                    }}>{dia}</Text>
+                    }}>{label}</Text>
                   </Pressable>
                 );
               })}
@@ -140,6 +171,7 @@ export default function NuevoVoluntarioScreen() {
           <Button 
             title="Guardar voluntario" 
             onPress={handleGuardar}
+            isLoading={saving}
             className="w-full"
           />
         </Animated.View>
