@@ -7,7 +7,7 @@ El MVP de **Comedor Conectado** busca entregar una aplicación móvil funcional 
 1. Registrar voluntarios.
 2. Gestionar turnos y asistencia.
 3. Registrar inventario básico de alimentos.
-4. Generar recomendaciones de menú usando una LLM: **Grok**.
+4. Generar recomendaciones de menú usando una LLM: **Groq**.
 5. Mostrar indicadores simples de impacto relacionados con ODS 2: Hambre Cero y ODS 12: Producción y Consumo Responsables.
 
 El enfoque del MVP no será construir toda la plataforma final con IoT, 5G y blockchain completos, sino dejar una base modular que permita agregar esas tecnologías en siguientes iteraciones.
@@ -26,7 +26,7 @@ Los comedores populares suelen enfrentar problemas de organización operativa: f
 
 ### Solución MVP
 
-Una aplicación móvil hecha en **React Native** que permita al administrador del comedor registrar voluntarios, asignar turnos, controlar asistencia, registrar alimentos disponibles y generar un menú sugerido mediante **Grok**, considerando los ingredientes ingresados.
+Una aplicación móvil hecha en **React Native** que permita al administrador del comedor registrar voluntarios, asignar turnos, controlar asistencia, registrar alimentos disponibles y generar un menú sugerido mediante **Groq**, considerando los ingredientes ingresados.
 
 ---
 
@@ -56,10 +56,10 @@ Una aplicación móvil hecha en **React Native** que permita al administrador de
    - Registrar unidad: kg, litros, unidades, bolsas, etc.
    - Marcar ingrediente como disponible o agotado.
 
-5. **Generación de menú con Grok**
+5. **Generación de menú con Groq**
    - Enviar al backend la lista de ingredientes disponibles.
-   - El backend llama a la API de Grok.
-   - Grok devuelve una sugerencia de menú: entrada, plato principal, bebida/refresco y recomendaciones de uso.
+   - El backend llama a la API de Groq.
+   - Groq devuelve una sugerencia de menú: entrada, plato principal, bebida/refresco y recomendaciones de uso.
 
 6. **Dashboard simple**
    - Número de voluntarios registrados.
@@ -91,7 +91,7 @@ Estas quedan como proyección, no se implementan para el lunes:
         v
 [Backend API Node.js + Express]
         |
-        |-----------------------> [Grok API - generación de menú]
+        |-----------------------> [Groq API - generación de menú]
         |
         v
 [Base de datos Firestore / PostgreSQL]
@@ -149,8 +149,8 @@ El backend será responsable de:
 1. Exponer endpoints REST.
 2. Validar datos básicos.
 3. Conectarse a la base de datos.
-4. Consumir la API de Grok.
-5. Proteger la API Key de Grok.
+4. Consumir la API de Groq.
+5. Proteger la API Key de Groq.
 6. Centralizar la lógica de negocio.
 
 ### Posible despliegue
@@ -164,7 +164,7 @@ Ideal si quieren mantener el enfoque cloud-native.
 - Backend en contenedor Docker.
 - Despliegue serverless.
 - Escala automáticamente.
-- Permite variables de entorno para la API Key de Grok.
+- Permite variables de entorno para la API Key de Groq.
 
 #### Opción B: Firebase Functions
 
@@ -190,7 +190,7 @@ Para el lunes, usar:
 - **Backend:** Node.js + Express.
 - **Base de datos:** Firestore.
 - **Despliegue backend:** Cloud Run si ya tienen GCP configurado; si no, Render o Railway para demo rápida.
-- **LLM:** Grok API desde backend, nunca desde el frontend.
+- **LLM:** Groq API desde backend, nunca desde el frontend.
 
 ---
 
@@ -271,7 +271,7 @@ configuracion_comedor
   "fecha": "2026-05-11",
   "ingredientesUsados": ["arroz", "lentejas", "zanahoria"],
   "racionesEstimadas": 50,
-  "respuestaIA": "Menu generado por Grok...",
+  "respuestaIA": "Menu generado por Groq...",
   "createdAt": "timestamp"
 }
 ```
@@ -413,7 +413,7 @@ Persona 3.
 
 ---
 
-## 6.5 Módulo de menú con Grok
+## 6.5 Módulo de menú con Groq
 
 ### Objetivo
 
@@ -427,7 +427,7 @@ Generar una recomendación de menú nutritivo usando los ingredientes disponible
 3. Usuario indica número aproximado de raciones.
 4. App envía solicitud al backend.
 5. Backend arma prompt.
-6. Backend llama a Grok API.
+6. Backend llama a Groq API.
 7. Backend guarda la respuesta en menus_generados.
 8. App muestra el menú generado.
 ```
@@ -468,7 +468,7 @@ POST /api/menu/generar
 }
 ```
 
-### Prompt base para Grok
+### Prompt base para Groq
 
 ```text
 Actúa como un nutricionista social especializado en comedores populares de Lima, Perú.
@@ -582,12 +582,12 @@ Persona 4 o integración entre todos.
 
 ---
 
-## Persona 4 - Inventario + Grok + demo final
+## Persona 4 - Inventario + Groq + demo final
 
 ### Responsabilidades
 
 - Implementar módulo de inventario en frontend y backend, si Persona 3 necesita apoyo.
-- Integrar Grok API desde el backend.
+- Integrar Groq API desde el backend.
 - Crear endpoint `/api/menu/generar`.
 - Guardar menús generados.
 - Preparar flujo de demo.
@@ -595,7 +595,7 @@ Persona 4 o integración entre todos.
 ### Entregables
 
 - Inventario funcional.
-- Generador de menú con Grok.
+- Generador de menú con Groq.
 - Último menú visible en dashboard.
 - Demo de extremo a extremo.
 
@@ -641,7 +641,7 @@ Persona 4 o integración entre todos.
 
 ### Backend
 
-- Integrar Grok.
+- Integrar Groq.
 - Crear endpoint de generación de menú.
 - Guardar respuesta en base de datos.
 
@@ -779,7 +779,7 @@ comedor-api/
       dashboard.controller.ts
     services/
       firestore.service.ts
-      grok.service.ts
+      groq.service.ts
     middlewares/
       error.middleware.ts
     app.ts
@@ -793,10 +793,10 @@ comedor-api/
 
 ## 11. Reglas de seguridad mínimas para MVP
 
-1. La API Key de Grok nunca debe estar en React Native.
+1. La API Key de Groq nunca debe estar en React Native.
 2. La API Key debe estar en `.env` o variable de entorno cloud.
 3. El frontend solo llama al backend.
-4. El backend llama a Grok.
+4. El backend llama a Groq.
 5. No subir `.env` al repositorio.
 6. Usar `.env.example` para mostrar qué variables se necesitan.
 7. Validar que los campos obligatorios no lleguen vacíos.
@@ -815,19 +815,19 @@ FIREBASE_CLIENT_EMAIL=
 FIREBASE_PRIVATE_KEY=
 
 GROK_API_KEY=
-GROK_MODEL=grok-2-latest
+GROK_MODEL=groq-2-latest
 ```
 
 ---
 
-## 13. Integración con Grok
+## 13. Integración con Groq
 
 ## Ubicación
 
 La integración debe estar en:
 
 ```text
-backend/src/services/grok.service.ts
+backend/src/services/groq.service.ts
 ```
 
 ## Responsabilidad
@@ -836,11 +836,11 @@ Este servicio debe:
 
 1. Recibir ingredientes y raciones.
 2. Construir el prompt.
-3. Llamar a Grok API.
+3. Llamar a Groq API.
 4. Devolver una respuesta estructurada.
 5. Manejar errores si la LLM no responde.
 
-## Respuesta alternativa si Grok falla
+## Respuesta alternativa si Groq falla
 
 Para evitar que la demo se caiga, implementar fallback:
 
@@ -874,7 +874,7 @@ Para evitar que la demo se caiga, implementar fallback:
 6. Registrar ingredientes disponibles.
 7. Ir a Menú IA.
 8. Ingresar 50 raciones.
-9. Generar menú con Grok.
+9. Generar menú con Groq.
 10. Volver al dashboard y mostrar resumen.
 
 ---
@@ -883,7 +883,7 @@ Para evitar que la demo se caiga, implementar fallback:
 
 ## IA en el MVP
 
-Sí se implementa en el MVP mediante Grok para generar menús usando ingredientes reales del inventario.
+Sí se implementa en el MVP mediante Groq para generar menús usando ingredientes reales del inventario.
 
 ## 5G como siguiente fase
 
@@ -915,7 +915,7 @@ Donación recibida -> Backend genera hash -> Blockchain registra evidencia -> Do
 - CRUD de voluntarios.
 - Gestión de turnos.
 - Inventario básico.
-- Menú generado con Grok.
+- Menú generado con Groq.
 - Backend API.
 - Base de datos.
 
@@ -924,7 +924,7 @@ Donación recibida -> Backend genera hash -> Blockchain registra evidencia -> Do
 - Dashboard.
 - Historial de menús.
 - Marcar asistencia.
-- Fallback si Grok falla.
+- Fallback si Groq falla.
 
 ## Could have
 
@@ -950,7 +950,7 @@ Donación recibida -> Backend genera hash -> Blockchain registra evidencia -> Do
 | Aplicación | React Native con Expo |
 | Backend | Node.js + Express |
 | Base de datos | Firestore |
-| IA | Grok API |
+| IA | Groq API |
 | Deploy frontend | Expo Go para demo o build APK si hay tiempo |
 | Deploy backend | Cloud Run, Render o Railway |
 | Seguridad | API Key solo en backend |
@@ -964,7 +964,7 @@ Donación recibida -> Backend genera hash -> Blockchain registra evidencia -> Do
 Al finalizar el MVP, el equipo debe tener una aplicación móvil funcional donde se pueda demostrar el siguiente flujo completo:
 
 ```text
-Registrar voluntarios -> Programar turnos -> Registrar inventario -> Generar menú con Grok -> Ver resumen del día
+Registrar voluntarios -> Programar turnos -> Registrar inventario -> Generar menú con Groq -> Ver resumen del día
 ```
 
 Este MVP será suficiente para demostrar valor real porque conecta la operación diaria del comedor con una herramienta de inteligencia artificial aplicada a una necesidad concreta: alimentar mejor, organizar mejor y desperdiciar menos.
@@ -1022,7 +1022,7 @@ Es la pantalla principal después del login. Debe permitir que el administrador 
 - Turnos programados para hoy.
 - Asistencias confirmadas.
 - Ingredientes disponibles.
-- Último menú generado con Grok.
+- Último menú generado con Groq.
 - Accesos rápidos a Voluntarios, Turnos, Inventario y Menú IA.
 
 ### Funcionalidad mínima
@@ -1239,7 +1239,7 @@ Registrar o modificar alimentos del inventario.
 
 ### Descripción
 
-Permite ingresar los ingredientes disponibles para que luego sean usados por Grok en la generación del menú.
+Permite ingresar los ingredientes disponibles para que luego sean usados por Groq en la generación del menú.
 
 ### Elementos principales
 
@@ -1262,7 +1262,7 @@ Alta.
 
 ---
 
-## 19.10 Vista de Menú IA con Grok
+## 19.10 Vista de Menú IA con Groq
 
 ### Objetivo
 
@@ -1277,16 +1277,16 @@ Esta es una de las vistas más importantes para la demo, porque demuestra el uso
 - Lista de ingredientes disponibles.
 - Campo para número de raciones.
 - Botón generar menú.
-- Indicador de carga mientras Grok responde.
+- Indicador de carga mientras Groq responde.
 - Resultado generado.
 
 ### Funcionalidad mínima
 
 - Consultar ingredientes disponibles.
 - Enviar raciones e ingredientes a `POST /api/menu/generar`.
-- Mostrar el menú generado por Grok.
+- Mostrar el menú generado por Groq.
 - Guardar el menú en la base de datos.
-- Mostrar mensaje alternativo si Grok falla.
+- Mostrar mensaje alternativo si Groq falla.
 
 ### Prioridad
 
@@ -1298,7 +1298,7 @@ Muy alta.
 
 ### Objetivo
 
-Mostrar de forma clara la respuesta generada por Grok.
+Mostrar de forma clara la respuesta generada por Groq.
 
 ### Descripción
 
@@ -1316,7 +1316,7 @@ Puede ser parte de la misma vista de Menú IA o una pantalla separada. Para el M
 
 ### Funcionalidad mínima
 
-- Mostrar la respuesta de Grok en formato ordenado.
+- Mostrar la respuesta de Groq en formato ordenado.
 - Permitir volver al Dashboard.
 - Permitir generar otro menú.
 
@@ -1748,7 +1748,7 @@ Es necesaria para una versión real con múltiples tipos de usuarios.
 7. Asistencia.
 8. Inventario.
 9. Crear / Editar ingrediente.
-10. Menú IA con Grok.
+10. Menú IA con Groq.
 11. Resultado de menú.
 
 ## Vistas recomendadas si alcanza el tiempo
